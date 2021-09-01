@@ -23,8 +23,6 @@ module.exports = async function ({ ethers, getNamedAccounts, deployments }) {
     from: deployer,
     args: [
       ethers.constants.WeiPerEther.mul(total_supply),
-      deployer,
-      deployer,
       hon_asset_id,
     ],
     libraries: {

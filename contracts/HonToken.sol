@@ -2,32 +2,23 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./libraries/NativeAssets.sol";
 
 // HonToken with Governance.
-contract HonToken is Ownable, ERC20Burnable {
+contract HonToken is Ownable, ERC20 {
   // Avalanche X-chain address
   uint256 private _assetID;
 
   // Fixed cap token
   uint256 private immutable maxSupply;
-  // Keep track of burned tokens
-  uint256 public burnedTokens;
-
-  address public treasuryAddress;
-  address public gameRewardAddress;
 
   /// @dev Hon Token
   constructor(
     uint256 _maxSupply,
-    address _treasuryAddress,
-    address _gameRewardAddress,
     uint256 assetID_
   ) ERC20("HonToken", "HON") {
     maxSupply = _maxSupply;
-    treasuryAddress = _treasuryAddress;
-    gameRewardAddress = _gameRewardAddress;
     _assetID = assetID_;
   }
 
@@ -66,20 +57,6 @@ contract HonToken is Ownable, ERC20Burnable {
   }
 
   /**
-   * @dev Override ERC20Burnable functions to keep track of burned token amount
-   * Cross chain transfers don't effect burn amount
-   */
-  function burn(uint256 amount) public override {
-    super.burn(amount);
-    burnedTokens += amount;
-  }
-
-  function burnFrom(address account, uint256 amount) public override {
-    super.burnFrom(account, amount);
-    burnedTokens += amount;
-  }
-
-  /**
    * @dev Returns the `assetID` of the underlying asset this contract handles.
    */
   function assetID() external view returns (uint256) {
@@ -92,14 +69,6 @@ contract HonToken is Ownable, ERC20Burnable {
    */
   function mint(address _to, uint256 _amount) public onlyOwner limitSupply(_amount) {
     _mint(_to, _amount);
-  }
-
-  /**
-   * TODO: 
-   * This is just for testing
-   */
-  function changeAssetID(uint256 assetID_) public onlyOwner {
-    _assetID = assetID_;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
