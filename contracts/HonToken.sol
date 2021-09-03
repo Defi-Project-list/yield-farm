@@ -8,7 +8,7 @@ import "./libraries/NativeAssets.sol";
 // HonToken with Governance.
 contract HonToken is Ownable, ERC20 {
   // Avalanche X-chain address
-  uint256 private _assetID;
+  uint256 private immutable _assetID;
 
   // Fixed cap token
   uint256 private immutable maxSupply;
@@ -28,16 +28,14 @@ contract HonToken is Ownable, ERC20 {
     _;
   }
 
-  /**
-   * @dev ARC20 compatibility
-   */
+  /// @dev ARC20 compatibility events
   event Deposit(address indexed dst, uint256 value);
   event Withdrawal(address indexed src, uint256 value);
 
-  // ARC20 - Deposit function
+  /// @dev ARC20 - Deposit function
   function deposit() public {
     uint256 updatedBalance = NativeAssets.assetBalance(address(this), _assetID);
-    // Multiply with 1 gwei to increase decimal count
+    // Multiply with 1 gwei to increase decimals from 9(avm) to 18(evm)
     uint256 depositAmount = (updatedBalance * 1 gwei) - totalSupply();
     require(depositAmount > 0, "Deposit amount should be more than zero");
 
@@ -45,33 +43,21 @@ contract HonToken is Ownable, ERC20 {
     emit Deposit(msg.sender, depositAmount);
   }
 
-  // ARC20 - Withdraw function
+  /// @dev ARC20 - Withdraw function
   function withdraw(uint256 amount) public {
-    require(balanceOf(msg.sender) >= amount, "insufficent funds");
-    _burn(msg.sender, amount);
-    // Divide by 1 gwei to decrease decimal count
+    // Divide by 1 gwei to decrease decimals from 18(evm) to 9(avm)
     // Division always floors
     uint256 native_amount = amount / 1 gwei;
+    require(balanceOf(msg.sender) >= native_amount, "insufficent funds");
+    _burn(msg.sender, native_amount);
     NativeAssets.assetCall(msg.sender, _assetID, native_amount, "");
-    emit Withdrawal(msg.sender, amount);
+    emit Withdrawal(msg.sender, native_amount);
   }
 
-  /**
-   * @dev Returns the `assetID` of the underlying asset this contract handles.
-   */
+  /// @dev Returns the `assetID` of the underlying asset this contract handles.
   function assetID() external view returns (uint256) {
     return _assetID;
   }
-
-  /**
-   * @dev Creates `_amount` token to `_to`.
-   * Must only be called by the owner (MasterGamer).
-   */
-  function mint(address _to, uint256 _amount) public onlyOwner limitSupply(_amount) {
-    _mint(_to, _amount);
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Copied and modified from YAM code:
   // https://github.com/yam-finance/yam-protocol/blob/master/contracts/token/YAMGovernanceStorage.sol

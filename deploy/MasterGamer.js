@@ -14,7 +14,6 @@ module.exports = async function ({ ethers, deployments, getNamedAccounts }) {
   const honPerPeriod = BigNumber.from(10).pow(18).mul(3100);
   const startPeriodMinutes = 24 * 60;
   const rewardPeriodMinutes = 60;
-  const bonusPeriodMinutes = 1;
 
   /**
    *  _hon,
@@ -23,8 +22,7 @@ module.exports = async function ({ ethers, deployments, getNamedAccounts }) {
    *  _feeaddr
    *  _honPerPeriod,
    *  _startPeriodMinutes,
-   *  _rewardPeriodMinutes,
-   *  _bonusPeriodMinutes
+   *  _rewardPeriodMinutes
    */
   const { address } = await deploy("MasterGamer", {
     from: deployer,
@@ -36,7 +34,6 @@ module.exports = async function ({ ethers, deployments, getNamedAccounts }) {
       honPerPeriod.toString(),
       "15",
       "5",
-      "15",
     ],
     log: true,
     deterministicDeployment: false,
