@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.3;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -7,19 +7,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./HonToken.sol";
-
-interface IMigratorChef {
-  // Perform LP token migration from legacy UniswapV2 to SushiSwap.
-  // Take the current LP token address and return the new LP token address.
-  // Migrator should have full access to the caller's LP token.
-  // Return the new LP token address.
-  //
-  // XXX Migrator must have allowance access to UniswapV2 LP tokens.
-  // SushiSwap must mint EXACTLY the same amount of SushiSwap LP tokens or
-  // else something bad will happen. Traditional UniswapV2 does not
-  // do that so be careful!
-  function migrate(IERC20 token) external returns (IERC20);
-}
 
 // MasterGamer is an Alpha Nerd. He can make Hon and he is a fair guy.
 //
@@ -79,15 +66,13 @@ contract MasterGamer is Ownable {
   // HON tokens created per period, reduced annually
   uint256 public honPerPeriod;
 
-  // The migrator contract. It has a lot of power. Can only be set through governance (owner).
-  IMigratorChef public migrator;
   // Info of each pool.
   PoolInfo[] public poolInfo;
   // Pool exists information
   mapping(address => bool) public poolExists;
   // Info of each user that stakes LP tokens.
   mapping(uint256 => mapping(address => UserInfo)) public userInfo;
-  // Total allocation poitns. Must be the sum of all allocation points in all pools.
+  // Total allocation points. Must be the sum of all allocation points in all pools.
   uint256 public totalAllocPoint = 0;
   // The starting timestamp when HON mining starts.
   uint256 public startTimestamp;
@@ -99,6 +84,9 @@ contract MasterGamer is Ownable {
   event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
   event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
   event RewardReduced(uint256 _honPerPeriod);
+  event DevChanged(address _devaddr);
+  event TreasuryChanged(address _treasuryaddr);
+  event FeeChanged(address _feeaddr);
 
   constructor(
     HonToken _hon,
@@ -119,6 +107,18 @@ contract MasterGamer is Ownable {
     LAST_REDUCTION_YEAR = startTimestamp;
   }
 
+  /// @dev Check if poolId exists
+  modifier validatePoolByPid(uint256 _pid) {
+    require(_pid < poolInfo.length, "Pool does not exist.");
+    _;
+  }
+
+  /// @dev TODO: only dev access
+  modifier onlyDev() {
+    require(msg.sender == devaddr, "dev: you shall not pass !");
+    _;
+  }
+
   /// @dev Count of pools
   function poolLength() external view returns (uint256) {
     return poolInfo.length;
@@ -137,7 +137,7 @@ contract MasterGamer is Ownable {
     uint256 _depositFeePerMillion,
     bool _withUpdate
   ) external onlyOwner {
-    require(poolExists[address(_lpToken)] == false, "LP token has already been added");
+    require(!poolExists[address(_lpToken)], "LP token has already been added");
     require(_depositFeePerMillion < 1e6, "The deposit fee should be between 0 and 999,999");
     if (_withUpdate) {
       massUpdatePools();
@@ -147,8 +147,8 @@ contract MasterGamer is Ownable {
     uint256 currentTimestamp = block.timestamp;
     if (currentTimestamp > startTimestamp) {
       uint256 rewardPeriodTime = rewardPeriodMinutes * 1 minutes;
-      uint256 periodCount = currentTimestamp.sub(startTimestamp).div(rewardPeriodTime);
-      lastRewardTimestamp = periodCount.add(1).mul(rewardPeriodTime).add(startTimestamp);
+      uint256 periodCount = (currentTimestamp.sub(startTimestamp)).div(rewardPeriodTime);
+      lastRewardTimestamp = ((periodCount.add(1)).mul(rewardPeriodTime)).add(startTimestamp);
     }
 
     totalAllocPoint = totalAllocPoint.add(_allocPoint);
@@ -170,7 +170,7 @@ contract MasterGamer is Ownable {
     uint256 _allocPoint,
     uint256 _depositFeePerMillion,
     bool _withUpdate
-  ) external onlyOwner {
+  ) external onlyOwner validatePoolByPid(_pid) {
     require(_depositFeePerMillion < 1e6, "The deposit fee should be between 0 and 999,999");
     if (_withUpdate) {
       massUpdatePools();
@@ -180,31 +180,19 @@ contract MasterGamer is Ownable {
     poolInfo[_pid].depositFeePerMillion = _depositFeePerMillion;
   }
 
-  /// @dev Set the migrator contract.
-  function setMigrator(IMigratorChef _migrator) external onlyOwner {
-    migrator = _migrator;
-  }
-
-  /// @dev Migrate lp token to another lp contract. We trust that migrator contract is good.
-  function migrate(uint256 _pid) public {
-    require(address(migrator) != address(0), "migrate: no migrator");
-    PoolInfo storage pool = poolInfo[_pid];
-    IERC20 lpToken = pool.lpToken;
-    uint256 bal = lpToken.balanceOf(address(this));
-    lpToken.safeApprove(address(migrator), bal);
-    IERC20 newLpToken = migrator.migrate(lpToken);
-    require(bal == newLpToken.balanceOf(address(this)), "migrate: bad");
-    pool.lpToken = newLpToken;
-  }
-
   /// @dev Return reward multiplier over the given _from to _to timestamp.
   function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
     uint256 rewardPeriodTime = rewardPeriodMinutes * 1 minutes;
-    return _to.sub(_from).div(rewardPeriodTime);
+    return (_to.sub(_from)).div(rewardPeriodTime);
   }
 
   /// @dev View function to see pending HONs of the user on frontend.
-  function pendingHon(uint256 _pid, address _user) external view returns (uint256) {
+  function pendingHon(uint256 _pid, address _user)
+    external
+    view
+    validatePoolByPid(_pid)
+    returns (uint256)
+  {
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][_user];
     uint256 accHonPerShare = pool.accHonPerShare;
@@ -212,10 +200,10 @@ contract MasterGamer is Ownable {
 
     if (block.timestamp > pool.lastRewardTimestamp && lpSupply != 0) {
       uint256 multiplier = getMultiplier(pool.lastRewardTimestamp, block.timestamp);
-      uint256 honReward = multiplier.mul(honPerPeriod).mul(pool.allocPoint).div(totalAllocPoint);
-      accHonPerShare = accHonPerShare.add(honReward.mul(1e12).div(lpSupply));
+      uint256 honReward = (multiplier.mul(honPerPeriod).mul(pool.allocPoint)).div(totalAllocPoint);
+      accHonPerShare = accHonPerShare.add((honReward.mul(1e12)).div(lpSupply));
     }
-    return user.amount.mul(accHonPerShare).div(1e12).sub(user.rewardDebt);
+    return ((user.amount.mul(accHonPerShare)).div(1e12)).sub(user.rewardDebt);
   }
 
   /// @dev Update reward variables for all pools. Be careful of gas spending!
@@ -230,14 +218,14 @@ contract MasterGamer is Ownable {
   function reduceRewards() internal {
     uint256 elapsed_time = block.timestamp - LAST_REDUCTION_YEAR;
     if (elapsed_time > ONE_YEAR) {
-      honPerPeriod = honPerPeriod - honPerPeriod.mul(REWARD_REDUCTION).div(100);
+      honPerPeriod = honPerPeriod - (honPerPeriod.mul(REWARD_REDUCTION)).div(100);
       LAST_REDUCTION_YEAR += ONE_YEAR;
       emit RewardReduced(honPerPeriod);
     }
   }
 
   /// @dev Update reward variables of the given pool to be up-to-date.
-  function updatePool(uint256 _pid) public {
+  function updatePool(uint256 _pid) public validatePoolByPid(_pid) {
     PoolInfo storage pool = poolInfo[_pid];
     // If the next reward period has not been elapsed do nothing
     if (block.timestamp <= pool.lastRewardTimestamp) {
@@ -250,7 +238,7 @@ contract MasterGamer is Ownable {
     uint256 lpSupply = pool.lpToken.balanceOf(address(this));
     uint256 tmpLastRewardTimestamp = pool.lastRewardTimestamp;
     uint256 rewardPeriodTime = rewardPeriodMinutes * 1 minutes;
-    uint256 periodCount = block.timestamp.sub(tmpLastRewardTimestamp).div(rewardPeriodTime);
+    uint256 periodCount = (block.timestamp.sub(tmpLastRewardTimestamp)).div(rewardPeriodTime);
 
     // Shift the reward time to the next timestamp
     tmpLastRewardTimestamp = periodCount.add(1).mul(rewardPeriodTime).add(tmpLastRewardTimestamp);
@@ -261,22 +249,22 @@ contract MasterGamer is Ownable {
     }
 
     uint256 multiplier = getMultiplier(pool.lastRewardTimestamp, block.timestamp);
-    uint256 honReward = multiplier.mul(honPerPeriod).mul(pool.allocPoint).div(totalAllocPoint);
+    uint256 honReward = (multiplier.mul(honPerPeriod).mul(pool.allocPoint)).div(totalAllocPoint);
 
     // Transfer dev & treasury share
-    safeHonTransfer(devaddr, honReward.mul(DEV_SHARE).div(100));
-    safeHonTransfer(treasuryaddr, honReward.mul(TREASURY_SHARE).div(100));
-    pool.accHonPerShare = pool.accHonPerShare.add(honReward.mul(1e12).div(lpSupply));
+    safeHonTransfer(devaddr, (honReward.mul(DEV_SHARE)).div(100));
+    safeHonTransfer(treasuryaddr, (honReward.mul(TREASURY_SHARE)).div(100));
+    pool.accHonPerShare = pool.accHonPerShare.add((honReward.mul(1e12)).div(lpSupply));
     pool.lastRewardTimestamp = tmpLastRewardTimestamp;
   }
 
   /// @dev Deposit LP tokens to MasterGamer for HON allocation.
-  function deposit(uint256 _pid, uint256 _amount) external {
+  function deposit(uint256 _pid, uint256 _amount) external validatePoolByPid(_pid) {
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][msg.sender];
     updatePool(_pid);
     if (user.amount > 0) {
-      uint256 pending = user.amount.mul(pool.accHonPerShare).div(1e12).sub(user.rewardDebt);
+      uint256 pending = ((user.amount.mul(pool.accHonPerShare)).div(1e12)).sub(user.rewardDebt);
       safeHonTransfer(msg.sender, pending);
     }
     if (_amount > 0) {
@@ -284,33 +272,34 @@ contract MasterGamer is Ownable {
       pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
       // Cut the pool fee from deposited then send to the feeaddr
       if (pool.depositFeePerMillion > 0) {
-        uint256 depositFee = _amount.mul(pool.depositFeePerMillion).div(1e6);
+        uint256 depositFee = (_amount.mul(pool.depositFeePerMillion)).div(1e6);
+        require(_amount > depositFee, "Insufficent deposit amount.");
         pool.lpToken.safeTransfer(feeaddr, depositFee);
-        user.amount = user.amount.add(_amount).sub(depositFee);
+        user.amount = (user.amount.add(_amount)).sub(depositFee);
       } else {
         user.amount = user.amount.add(_amount);
       }
     }
-    user.rewardDebt = user.amount.mul(pool.accHonPerShare).div(1e12);
+    user.rewardDebt = (user.amount.mul(pool.accHonPerShare)).div(1e12);
     emit Deposit(msg.sender, _pid, _amount);
   }
 
   /// @dev Withdraw LP tokens from MasterGamer.
-  function withdraw(uint256 _pid, uint256 _amount) external {
+  function withdraw(uint256 _pid, uint256 _amount) external validatePoolByPid(_pid) {
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][msg.sender];
     require(user.amount >= _amount, "withdraw: failed!");
     updatePool(_pid);
-    uint256 pending = user.amount.mul(pool.accHonPerShare).div(1e12).sub(user.rewardDebt);
+    uint256 pending = ((user.amount.mul(pool.accHonPerShare)).div(1e12)).sub(user.rewardDebt);
     safeHonTransfer(msg.sender, pending);
     user.amount = user.amount.sub(_amount);
-    user.rewardDebt = user.amount.mul(pool.accHonPerShare).div(1e12);
+    user.rewardDebt = (user.amount.mul(pool.accHonPerShare)).div(1e12);
     pool.lpToken.safeTransfer(address(msg.sender), _amount);
     emit Withdraw(msg.sender, _pid, _amount);
   }
 
   /// @dev Withdraw without caring about rewards. EMERGENCY ONLY.
-  function emergencyWithdraw(uint256 _pid) external {
+  function emergencyWithdraw(uint256 _pid) external validatePoolByPid(_pid) {
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][msg.sender];
     pool.lpToken.safeTransfer(address(msg.sender), user.amount);
@@ -330,23 +319,23 @@ contract MasterGamer is Ownable {
   }
 
   /// @dev Update dev address by the previous dev.
-  function dev(address _devaddr) external {
+  function dev(address _devaddr) external onlyDev {
     require(_devaddr != address(0), "dev address must not be address(0)");
-    require(msg.sender == devaddr, "dev: you shall not pass !");
     devaddr = _devaddr;
+    emit DevChanged(_devaddr);
   }
 
   /// @dev Update treasury address by the dev.
-  function treasury(address _treasuryaddr) external {
+  function treasury(address _treasuryaddr) external onlyDev {
     require(_treasuryaddr != address(0), "treasury address must not be address(0)");
-    require(msg.sender == devaddr, "dev: you shall not pass !");
     treasuryaddr = _treasuryaddr;
+    emit TreasuryChanged(_treasuryaddr);
   }
 
   /// @dev Update fee address by the dev.
-  function fee(address _feeaddr) external {
+  function fee(address _feeaddr) external onlyDev {
     require(_feeaddr != address(0), "fee address must not be address(0)");
-    require(msg.sender == devaddr, "dev: you shall not pass !");
     feeaddr = _feeaddr;
+    emit FeeChanged(_feeaddr);
   }
 }

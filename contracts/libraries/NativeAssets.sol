@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.3;
 
 library NativeAssets {
   address constant balanceAddr = 0x0100000000000000000000000000000000000001;

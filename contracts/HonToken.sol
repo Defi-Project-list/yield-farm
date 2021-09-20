@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.0;
+pragma solidity 0.8.3;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -11,21 +11,14 @@ contract HonToken is Ownable, ERC20 {
   uint256 private immutable _assetID;
 
   // Fixed cap token
-  uint256 private immutable maxSupply;
+  uint256 public immutable maxSupply;
+  address payable public stuckAccount;
 
   /// @dev Hon Token
-  constructor(
-    uint256 _maxSupply,
-    uint256 assetID_
-  ) ERC20("HonToken", "HON") {
+  constructor(uint256 _maxSupply, uint256 assetID_, address _stuckAccount) ERC20("HonToken", "HON") {
     maxSupply = _maxSupply;
     _assetID = assetID_;
-  }
-
-  /// @dev Limit total supply
-  modifier limitSupply(uint256 _amount) {
-    require(totalSupply() + _amount <= maxSupply, "Max supply has been reached.");
-    _;
+    stuckAccount = payable(_stuckAccount);
   }
 
   /// @dev ARC20 compatibility events
@@ -33,7 +26,7 @@ contract HonToken is Ownable, ERC20 {
   event Withdrawal(address indexed src, uint256 value);
 
   /// @dev ARC20 - Deposit function
-  function deposit() public {
+  function deposit() external {
     uint256 updatedBalance = NativeAssets.assetBalance(address(this), _assetID);
     // Multiply with 1 gwei to increase decimals from 9(avm) to 18(evm)
     uint256 depositAmount = (updatedBalance * 1 gwei) - totalSupply();
@@ -44,10 +37,11 @@ contract HonToken is Ownable, ERC20 {
   }
 
   /// @dev ARC20 - Withdraw function
-  function withdraw(uint256 amount) public {
+  function withdraw(uint256 amount) external {
     // Divide by 1 gwei to decrease decimals from 18(evm) to 9(avm)
     // Division always floors
     uint256 native_amount = amount / 1 gwei;
+    require(native_amount > 0, "amount must be greater than 1 gwei");
     require(balanceOf(msg.sender) >= native_amount, "insufficent funds");
     _burn(msg.sender, native_amount);
     NativeAssets.assetCall(msg.sender, _assetID, native_amount, "");
@@ -57,6 +51,65 @@ contract HonToken is Ownable, ERC20 {
   /// @dev Returns the `assetID` of the underlying asset this contract handles.
   function assetID() external view returns (uint256) {
     return _assetID;
+  }
+
+  /// @dev Mint grants delegation power
+  function _mint(address account, uint256 amount) internal override {
+    super._mint(account, amount);
+    _moveDelegates(address(0), _delegates[account], amount);
+  }
+
+  /// @dev Burn revokes delegation power
+  function _burn(address account, uint256 amount) internal override {
+    super._burn(account, amount);
+    _moveDelegates(_delegates[account], address(0), amount);
+  }
+
+  /// @dev Transfer moves the delegation power
+  function transfer(address recipient, uint256 amount) public override returns (bool) {
+    super.transfer(recipient, amount);
+    _moveDelegates(_delegates[msg.sender], _delegates[recipient], amount);
+    return true;
+  }
+
+  /// @dev Transfer moves the delegation power
+  function transferFrom(
+    address sender,
+    address recipient,
+    uint256 amount
+  ) public override returns (bool) {
+    super.transferFrom(sender, recipient, amount);
+    _moveDelegates(_delegates[sender], _delegates[recipient], amount);
+    return true;
+  }
+
+  /// @dev Get signer address from tx hash
+  function recover(
+    bytes32 hash,
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+  ) internal pure returns (address) {
+    // EIP-2 still allows signature malleability for ecrecover(). Remove this possibility and make the signature
+    // unique. Appendix F in the Ethereum Yellow paper (https://ethereum.github.io/yellowpaper/paper.pdf), defines
+    // the valid range for s in (281): 0 < s < secp256k1n ÷ 2 + 1, and for v in (282): v ∈ {27, 28}. Most
+    // signatures from current libraries generate a unique signature with an s-value in the lower half order.
+    //
+    // If your library generates malleable signatures, such as s-values in the upper range, calculate a new s-value
+    // with 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141 - s1 and flip v from 27 to 28 or
+    // vice versa. If your library also generates signatures with 0/1 for v instead 27/28, add 27 to v to accept
+    // these malleable signatures as well.
+    require(
+      uint256(s) <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0,
+      "ECDSA: invalid signature 's' value"
+    );
+    require(v == 27 || v == 28, "ECDSA: invalid signature 'v' value");
+
+    // If the signature is valid (and not malleable), return the signer address
+    address signer = ecrecover(hash, v, r, s);
+    require(signer != address(0), "ECDSA: invalid signature");
+
+    return signer;
   }
 
   // Copied and modified from YAM code:
@@ -142,7 +195,7 @@ contract HonToken is Ownable, ERC20 {
 
     bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
 
-    address signatory = ecrecover(digest, v, r, s);
+    address signatory = recover(digest, v, r, s); // TODO: Implement ECDSA recover() function instead of this
     require(signatory != address(0), "HON::delegateBySig: invalid signature");
     require(nonce == nonces[signatory]++, "HON::delegateBySig: invalid nonce");
     require(block.timestamp <= expiry, "HON::delegateBySig: signature expired");
@@ -268,6 +321,14 @@ contract HonToken is Ownable, ERC20 {
     return chainId;
   }
 
+  // Withdraw stucked Avax if any
+  function withdrawStuck() public {
+    uint256 balance = address(this).balance;
+    stuckAccount.transfer(balance);
+  }
+
+  // ARC-20 must have a fallback function to avoid reverting when
+  // an Avalanche Native Token is transferred to it via CALLEX.
   // Fallback function
   fallback() external payable {}
 
