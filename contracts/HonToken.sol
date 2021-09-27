@@ -31,6 +31,7 @@ contract HonToken is Ownable, ERC20 {
     // Multiply with 1 gwei to increase decimals from 9(avm) to 18(evm)
     uint256 depositAmount = (updatedBalance * 1 gwei) - totalSupply();
     require(depositAmount > 0, "Deposit amount should be more than zero");
+    require(depositAmount + totalSupply() <= maxSupply, "Maximum supply is reached.");
 
     _mint(msg.sender, depositAmount);
     emit Deposit(msg.sender, depositAmount);
