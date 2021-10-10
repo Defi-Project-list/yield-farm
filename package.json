@@ -15,7 +15,7 @@
     "avash:deploy": "npx hardhat --network avash deploy --export exports/avash/farm-exports.json",
     "fuji:deploy": "npx hardhat --network fuji deploy --export exports/fuji/farm-exports.json",
     "fuji:export": "npx hardhat --network fuji export --export exports/fuji/farm-exports.json",
-    "mainnet:deploy": "npx hardhat --network mainnet deploy --export exports/mainnet/farm-exports.json"
+    "avalanche:deploy": "npx hardhat --network avalanche deploy --export exports/avalanche/farm-exports.json"
   },
   "keywords": [
     "heroesofnft",
