@@ -55,7 +55,9 @@ References:
 1. Contract addresses
   * **Hon:** 0x4246083C7D07e4B7Ac95E6289c93255611141021
   * **Hon Xchain AssetId:** zdXmHXkF2pDpJv5zWPeNesgGja7jX17U5ea48mdsWiCNyUqRe
-  * **MasterGamer:** 
+  * **MasterGamer:** 0x42A6d350E3d42fC86E94EDF19014d23baeDf889a
+  * **LiquidityLocker:** 0x01CD3dBcAf96AF7948eEf98bC1d631CD9821071E
+  * **Hon/Avax Pangolin PGL:** 0x887E8f7Df7b2078187a98B6adA98cebf460883bf
   * **HeroesToken:** 
   * **Marketplace:** 
 2. Wallet addresses
@@ -72,5 +74,16 @@ References:
   * Hon Contract Deployment: 0xe3f22442d2b9517e23ae5ba54112480681f7c4c411a00cb222c88b1c0758abe5, cost: 0.998 Avax
   * Hon Deposit: 0x82b92e1d6af1640946fd2f29ed9c62e17157f2ccff49aeaa9c17cb0a999feaff, cost: 0.0027 Avax
   * Hon Deposit: 0xd740837d528085f62e2e067ba3017186675de0688465b404a205a6a415c481ec, cost: 0.0018 Avax
+  * 
+  * MasterGamer Deployment: 0x88bec3139baab02526041e2cd7399c1d26cf85a3aea7ee0f94796f20872116ff, cost: 0.877 Avax
+  * LiquidityLocker Deployment: 0xb73a21c4ad1b2a4de96efad8d8a32591f33291ba5dfdfcf6ac8ca4e84fc6159d, cost: 0.49 Avax
+  * 
+  * MasterGamer add: 0x1f79eea7bd4982fc303e67028ce7a5afaba8e0ae9d12bc50c0f24f723fdee2e2
+  * MasterGamer deposit: 0xe842c2189cd1a95c2a816bf68ce9f05400352c12970868e25d9e990b252bc24a
+  * 
+  * LiquidityLocker add: 0x88423c5ad83402cc55f101c8f5aa160cb38c06d4e2486ed788a49e85df1dbd1a, cost: 0.0017 Avax
+  * LiquidityLocker approve: 0x3e434a15c5d19a667a39b524ab3a4019ae8f25ac11f462cd2e0f574bef4eb78d, cost: 0.0013 Avax
+  * LiquidityLocker deposit: 0xd97bf00858faaed2051cd45be3f140509214e2fd109d615e9e66ed298bc59881, cost: 0.0058 Avax
+  * 
   * 
 
