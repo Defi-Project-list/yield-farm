@@ -12,7 +12,7 @@ module.exports = async function ({ ethers, getNamedAccounts, deployments }) {
 
   const denomination = 18;
   const total_supply = 200000000;
-  const xChainAssetID = "2qTqfExA4Du47qhnAHVyEuCpzUY9n32jnjUC9h6vvqFhNoijHk";
+  const xChainAssetID = "zdXmHXkF2pDpJv5zWPeNesgGja7jX17U5ea48mdsWiCNyUqRe";
 
   const byte_array = bintools.cb58Decode(xChainAssetID);
   const hon_asset_id = BigNumber.from(byte_array);

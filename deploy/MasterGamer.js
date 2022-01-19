@@ -12,13 +12,12 @@ module.exports = async function ({ ethers, deployments, getNamedAccounts }) {
   // Hon each period (1 hour) = 3100
   // Hon each year (1 hour) = 3100 * 24 * 360 = 26,784,000 for stakers
   const honPerPeriod = BigNumber.from(10).pow(18).mul(3100);
-  const startPeriodMinutes = 24 * 60;
-  const rewardPeriodMinutes = 60;
+  const startPeriodMinutes = 10;
+  const rewardPeriodMinutes = 1;
 
   /**
    *  _hon,
    *  _devaddr,
-   *  _treasuryaddr
    *  _feeaddr
    *  _honPerPeriod,
    *  _startPeriodMinutes,
@@ -30,10 +29,9 @@ module.exports = async function ({ ethers, deployments, getNamedAccounts }) {
       hon.address,
       deployer,
       deployer,
-      deployer,
       honPerPeriod.toString(),
-      "15",
-      "5",
+      startPeriodMinutes,
+      rewardPeriodMinutes,
     ],
     log: true,
     deterministicDeployment: false,

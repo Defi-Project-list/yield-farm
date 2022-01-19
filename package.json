@@ -25,7 +25,7 @@
     "avax"
   ],
   "author": "defikintaro",
-  "license": "GPL-2.0 or Later",
+  "license": "GPL-2.0-or-later",
   "devDependencies": {
     "@ethersproject/bignumber": "^5.1.0",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
@@ -58,6 +58,7 @@
     "yarn": "^1.22.10"
   },
   "dependencies": {
+    "@nomiclabs/hardhat-etherscan": "^3.0.0",
     "@pangolindex/exchange-contracts": "^1.0.1"
   }
 }

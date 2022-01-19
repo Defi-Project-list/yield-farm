@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./HonToken.sol";
 
-// MasterGamer is an Alpha Nerd. He can make Hon and he is a fair guy.
+// MasterGamer is an Alpha Nerd. He can distribute Hon and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
 // will be transferred to a governance smart contract once Hon is sufficiently
@@ -48,22 +48,16 @@ contract MasterGamer is Ownable {
   HonToken public immutable hon;
   // Dev address.
   address public devaddr;
-  // Treasury address.
-  address public treasuryaddr;
   // Fee address
   address public feeaddr;
 
-  // Dev share is 15%
-  uint256 public constant DEV_SHARE = 20;
-  // Treasury share is 20%
-  uint256 public constant TREASURY_SHARE = 15;
   // ONE YEAR
   uint256 public constant ONE_YEAR = 365 days;
-  // Annual Reward Reduction 20%
-  uint256 public constant REWARD_REDUCTION = 20;
-  // Keep track of last reduction year
-  uint256 public LAST_REDUCTION_YEAR;
-  // HON tokens created per period, reduced annually
+  // Annual Reward Increase 25%
+  uint256 public constant REWARD_INCREASE = 25;
+  // Keep track of last increase year
+  uint256 public LAST_INCREASE_YEAR;
+  // HON tokens created per period, increased annually
   uint256 public honPerPeriod;
 
   // Info of each pool.
@@ -73,7 +67,7 @@ contract MasterGamer is Ownable {
   // Info of each user that stakes LP tokens.
   mapping(uint256 => mapping(address => UserInfo)) public userInfo;
   // Total allocation points. Must be the sum of all allocation points in all pools.
-  uint256 public totalAllocPoint = 0;
+  uint256 public totalAllocPoint;
   // The starting timestamp when HON mining starts.
   uint256 public startTimestamp;
   // How often reward HON is distributed in minutes.
@@ -83,15 +77,13 @@ contract MasterGamer is Ownable {
   event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
   event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
   event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
-  event RewardReduced(uint256 _honPerPeriod);
+  event RewardsIncreased(uint256 _honPerPeriod);
   event DevChanged(address _devaddr);
-  event TreasuryChanged(address _treasuryaddr);
   event FeeChanged(address _feeaddr);
 
   constructor(
     HonToken _hon,
     address _devaddr,
-    address _treasuryaddr,
     address _feeaddr,
     uint256 _honPerPeriod,
     uint256 _startPeriodMinutes,
@@ -99,12 +91,11 @@ contract MasterGamer is Ownable {
   ) {
     hon = _hon;
     devaddr = _devaddr;
-    treasuryaddr = _treasuryaddr;
     feeaddr = _feeaddr;
     honPerPeriod = _honPerPeriod;
     startTimestamp = block.timestamp + (_startPeriodMinutes * 1 minutes);
     rewardPeriodMinutes = _rewardPeriodMinutes;
-    LAST_REDUCTION_YEAR = startTimestamp;
+    LAST_INCREASE_YEAR = startTimestamp;
   }
 
   /// @dev Check if poolId exists
@@ -214,13 +205,13 @@ contract MasterGamer is Ownable {
     }
   }
 
-  /// @dev If one year is elapsed simply reduce the rewards.
-  function reduceRewards() internal {
-    uint256 elapsed_time = block.timestamp - LAST_REDUCTION_YEAR;
+  /// @dev If one year is elapsed simply increase the rewards.
+  function increaseRewards() internal {
+    uint256 elapsed_time = block.timestamp - LAST_INCREASE_YEAR;
     if (elapsed_time > ONE_YEAR) {
-      honPerPeriod = honPerPeriod - (honPerPeriod.mul(REWARD_REDUCTION)).div(100);
-      LAST_REDUCTION_YEAR += ONE_YEAR;
-      emit RewardReduced(honPerPeriod);
+      honPerPeriod = honPerPeriod + (honPerPeriod.mul(REWARD_INCREASE)).div(100);
+      LAST_INCREASE_YEAR += ONE_YEAR;
+      emit RewardsIncreased(honPerPeriod);
     }
   }
 
@@ -233,7 +224,7 @@ contract MasterGamer is Ownable {
     }
 
     // Reduce the rewards
-    reduceRewards();
+    increaseRewards();
 
     uint256 lpSupply = pool.lpToken.balanceOf(address(this));
     uint256 tmpLastRewardTimestamp = pool.lastRewardTimestamp;
@@ -252,8 +243,6 @@ contract MasterGamer is Ownable {
     uint256 honReward = (multiplier.mul(honPerPeriod).mul(pool.allocPoint)).div(totalAllocPoint);
 
     // Transfer dev & treasury share
-    safeHonTransfer(devaddr, (honReward.mul(DEV_SHARE)).div(100));
-    safeHonTransfer(treasuryaddr, (honReward.mul(TREASURY_SHARE)).div(100));
     pool.accHonPerShare = pool.accHonPerShare.add((honReward.mul(1e12)).div(lpSupply));
     pool.lastRewardTimestamp = tmpLastRewardTimestamp;
   }
@@ -323,13 +312,6 @@ contract MasterGamer is Ownable {
     require(_devaddr != address(0), "dev address must not be address(0)");
     devaddr = _devaddr;
     emit DevChanged(_devaddr);
-  }
-
-  /// @dev Update treasury address by the dev.
-  function treasury(address _treasuryaddr) external onlyDev {
-    require(_treasuryaddr != address(0), "treasury address must not be address(0)");
-    treasuryaddr = _treasuryaddr;
-    emit TreasuryChanged(_treasuryaddr);
   }
 
   /// @dev Update fee address by the dev.
