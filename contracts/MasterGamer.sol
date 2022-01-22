@@ -80,6 +80,7 @@ contract MasterGamer is Ownable {
   event RewardsIncreased(uint256 _honPerPeriod);
   event DevChanged(address _devaddr);
   event FeeChanged(address _feeaddr);
+  event UpdateEmissionRate(address user, uint256 _honPerPeriod);
 
   constructor(
     HonToken _hon,
@@ -319,5 +320,12 @@ contract MasterGamer is Ownable {
     require(_feeaddr != address(0), "fee address must not be address(0)");
     feeaddr = _feeaddr;
     emit FeeChanged(_feeaddr);
+  }
+
+  /// @dev Alter the emission rate simple and transparent to all.
+  function updateEmissionRate(uint256 _honPerPeriod) public onlyOwner {
+    massUpdatePools();
+    honPerPeriod = _honPerPeriod;
+    emit UpdateEmissionRate(msg.sender, _honPerPeriod);
   }
 }
